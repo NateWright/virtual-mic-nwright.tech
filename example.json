@@ -1,0 +1,69 @@
+[
+    {
+        "index": 710,
+        "driver": "PipeWire",
+        "owner_module": null,
+        "client": "709",
+        "sink": 65,
+        "sample_specification": "float32le 2ch 44100Hz",
+        "channel_map": "front-left,front-right",
+        "format": "pcm, format.sample_format = \"\\\"float32le\\\"\"  format.rate = \"44100\"  format.channels = \"2\"  format.channel_map = \"\\\"front-left,front-right\\\"\"",
+        "corked": false,
+        "mute": false,
+        "volume": {
+            "front-left": {
+                "value": 33119,
+                "value_percent": "51%",
+                "db": "-17.78 dB"
+            },
+            "front-right": {
+                "value": 33119,
+                "value_percent": "51%",
+                "db": "-17.78 dB"
+            }
+        },
+        "balance": 0.00,
+        "buffer_latency_usec": 0.00,
+        "sink_latency_usec": 0.00,
+        "resample_method": "PipeWire",
+        "properties": {
+            "client.api": "pipewire-pulse",
+            "pulse.server.type": "unix",
+            "pipewire.access.portal.app_id": "com.spotify.Client",
+            "pipewire.client.access": "flatpak",
+            "application.name": "spotify",
+            "application.icon_name": "com.spotify.Client",
+            "application.process.id": "6",
+            "application.process.user": "nwright",
+            "application.process.host": "nwright-nixos-pc",
+            "application.process.binary": "spotify",
+            "application.language": "en_US.UTF-8",
+            "window.x11.display": ":0",
+            "application.process.machine_id": "0d5baff3131741ec95972edaa5a11818",
+            "media.role": "music",
+            "media.name": "Spotify",
+            "node.rate": "1/44100",
+            "node.latency": "8192/44100",
+            "stream.is-live": "true",
+            "node.name": "spotify",
+            "node.want-driver": "true",
+            "node.autoconnect": "true",
+            "media.class": "Stream/Output/Audio",
+            "adapt.follower.spa-node": "",
+            "object.register": "false",
+            "factory.id": "6",
+            "clock.quantum-limit": "8192",
+            "factory.mode": "split",
+            "audio.adapt.follower": "",
+            "library.name": "audioconvert/libspa-audioconvert",
+            "client.id": "180",
+            "object.id": "181",
+            "object.serial": "710",
+            "pulse.attr.maxlength": "4194304",
+            "pulse.attr.tlength": "640064",
+            "pulse.attr.prebuf": "0",
+            "pulse.attr.minreq": "7056",
+            "module-stream-restore.id": "sink-input-by-media-role:music"
+        }
+    }
+]
