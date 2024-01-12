@@ -74,20 +74,26 @@ const Indicator = GObject.registerClass(
                     if (application == this.last_connection) {
                         item.setOrnament(PopupMenu.Ornament.CHECK);
                     }
-                    item.connect('activate', () => {
-                        const connectProc = Gio.Subprocess.new(['pw-link', application, 'VirtualMic'], Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE);
-                        connectProc.communicate_utf8_async(null, null, (proc2, res2) => {
-                            this.disconnect_audio();
-                            item.setOrnament(PopupMenu.Ornament.CHECK);
-                            this.last_connection = application;
-                            let [, stdout, stderr] = connectProc.communicate_utf8_finish(res2);
-                            console.log(stdout);
-                        });
-                    });
+                    item.connect('activate', (item, event) => this.itemClicked(item, event));
                     this.menu.addMenuItem(item);
                 }
             });
 
+        }
+
+        itemClicked(item, event) {
+            const last_connection = this.last_connection;
+            this.disconnect_audio();
+            if (item.label.text == last_connection) {
+                return;
+            }
+            const connectProc = Gio.Subprocess.new(['pw-link', item.label.text, 'VirtualMic'], Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE);
+            connectProc.communicate_utf8_async(null, null, (proc2, res2) => {
+                item.setOrnament(PopupMenu.Ornament.CHECK);
+                this.last_connection = item.label.text;
+                let [, stdout, stderr] = connectProc.communicate_utf8_finish(res2);
+                console.log(stdout);
+            });
         }
 
         disconnect_audio() {
@@ -96,6 +102,7 @@ const Indicator = GObject.registerClass(
             }
             const dis = Gio.Subprocess.new(['pw-link', '-d', this.last_connection, 'VirtualMic'], Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE);
             dis.wait(null);
+            this.last_connection = null;
         }
 
     });
