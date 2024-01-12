@@ -1,0 +1,8 @@
+{
+  "name": "Gnome Virtual Mic",
+  "description": "Creates a virtual mic from an application",
+  "uuid": "virtual-mic@nwright.tech",
+  "shell-version": [
+    "45"
+  ]
+}
