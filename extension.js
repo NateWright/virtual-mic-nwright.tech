@@ -42,6 +42,10 @@ const Indicator = GObject.registerClass(
                     this.updateMenu();
                 }
             });
+            const menuItem = new PopupMenu.PopupMenuItem('Select Source');
+            menuItem.active = false;
+            menuItem.sensitive = false;
+            this.menu.addMenuItem(menuItem);
             this.updateMenu();
         }
         updateMenu() {
@@ -61,6 +65,10 @@ const Indicator = GObject.registerClass(
                 }
                 this.menu_items = active_audio;
                 this.menu.removeAll();
+                const menuItem = new PopupMenu.PopupMenuItem('Select Source');
+                menuItem.active = false;
+                menuItem.sensitive = false;
+                this.menu.addMenuItem(menuItem);
                 for (let application of this.menu_items) {
                     const item = new PopupMenu.PopupMenuItem(application);
                     if (application == this.last_connection) {
