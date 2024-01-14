@@ -65,7 +65,6 @@ const Indicator = GObject.registerClass(
             if (id in this._applications) {
                 return;
             }
-            console.log('adding ' + id)
             const stream = control.lookup_stream_id(id);
             if (stream.is_event_stream || !(stream instanceof MixerSinkInput)) {
                 return;
@@ -93,7 +92,6 @@ const Indicator = GObject.registerClass(
                                         application.outputChannels[pwNode2["info"]["props"]["audio.channel"]] = pwNode2["id"];
                                     }
                                     if ("FL" in application.outputChannels && "FR" in application.outputChannels) {
-                                        console.log(application.outputChannels);
                                         application.menuItem.connect('activate', (item, event) => {
                                             this.connect_audio(application.id);
                                         });
@@ -119,7 +117,6 @@ const Indicator = GObject.registerClass(
             if (!(id in this._applications)) {
                 return;
             }
-            console.log('removing ' + id)
 
             const application = this._applications[id];
             application.menuItem.destroy();
