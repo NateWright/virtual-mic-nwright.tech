@@ -32,54 +32,88 @@ const MixerSinkInput = Gvc.MixerSinkInput;
 
 const Indicator = GObject.registerClass(
     class Indicator extends PanelMenu.Button {
-        _init(dir_path) {
+        _init(dir_path, channels) {
             super._init(0.5, _('My Shiny Indicator'));
 
             this.add_child(new St.Icon({
                 gicon: Gio.icon_new_for_string(dir_path + '/icon-audio.svg'),
                 style_class: 'system-status-icon',
             }));
+            this._channels = channels;
             this._activeApplication = null;
             this._applications = {};
             this._mixerControl = Volume.getMixerControl();
             this._sa_event_id = this._mixerControl.connect('stream-added', this._onStreamAdded.bind(this));
             this._sr_event_id = this._mixerControl.connect('stream-removed', this._onStreamRemoved.bind(this));
-            this.menu.connect('open-state-changed', (menu, open) => {
-                if (open) {
-                    this.updateMenu();
-                }
-            });
+            // this.menu.connect('open-state-changed', (menu, open) => {
+            //     if (open) {
+            //         this.updateMenu();
+            //     }
+            // });
             const menuItem = new PopupMenu.PopupMenuItem('Select Source');
             menuItem.active = false;
             menuItem.sensitive = false;
             this.menu.addMenuItem(menuItem);
 
             for (const stream of this._mixerControl.get_streams()) {
-                this._onStreamAdded(this._mixerControl, stream);
+                this._onStreamAdded(this._mixerControl, stream.id);
             }
-            this.updateMenu();
+            // this.updateMenu();
         }
 
         _onStreamAdded(control, id) {
             if (id in this._applications) {
                 return;
             }
-
+            console.log('adding ' + id)
             const stream = control.lookup_stream_id(id);
             if (stream.is_event_stream || !(stream instanceof MixerSinkInput)) {
                 return;
             }
-            console.log('adding ' + id)
-            console.log('app id:' + stream.index);
             const application = {
                 id: id,
                 name: stream.name,
                 stream: stream,
-                menuItem: new PopupMenu.PopupMenuItem(stream.name + ' ' + stream.description)
+                menuItem: new PopupMenu.PopupMenuItem(stream.name + ': ' + stream.description),
+                outputChannels: {},
             }
-            application.menuItem.connect('activate', (item, event) => this.itemClicked(item, event));
-            this._applications[id] = application;
-            this.menu.addMenuItem(application.menuItem);
+            const pwDump = Gio.Subprocess.new(['pw-dump'], Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE);
+            pwDump.communicate_utf8_async(null, null, (proc1, res1) => {
+                let [, stdout, stderr] = pwDump.communicate_utf8_finish(res1);
+                const pwJson = JSON.parse(stdout);
+                for (let i = 0; i < pwJson.length; i++) {
+                    const pwNode = pwJson[i];
+                    try {
+                        if (pwNode["info"]["props"]["object.serial"] == stream.index) {
+                            const id = pwNode["id"];
+                            for (let j = i + 1; i < pwJson.length; j++) {
+                                try {
+                                    const pwNode2 = pwJson[j];
+                                    if (pwNode2["info"]["props"]["node.id"] == id && pwNode2["info"]["props"]["port.direction"] == "out") {
+                                        application.outputChannels[pwNode2["info"]["props"]["audio.channel"]] = pwNode2["id"];
+                                        break;
+                                    }
+                                    if ("FL" in application.outputChannels && "FR" in application.outputChannels) {
+                                        application.menuItem.connect('activate', (item, event) => {
+                                            this.connect_audio(application.id);
+                                        });
+                                        break;
+                                    }
+                                } catch (e) {
+
+                                }
+
+                            }
+                            break;
+                        }
+                    } catch (e) {
+
+                    }
+
+                }
+                this._applications[id] = application;
+                this.menu.addMenuItem(application.menuItem);
+            });
         }
         _onStreamRemoved(control, id) {
             if (!(id in this._applications)) {
@@ -91,63 +125,68 @@ const Indicator = GObject.registerClass(
             this.menu.removeMenuItem(application.menuItem);
             delete this._applications[id];
         }
-        updateMenu() {
-            return;
-            const getApplications = Gio.Subprocess.new(['pactl', '-f', 'json', 'list', 'sink-inputs'], Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE);
-            getApplications.communicate_utf8_async(null, null, (proc1, res1) => {
-                let [, applications, stderr] = getApplications.communicate_utf8_finish(res1);
-                const applicationsJson = JSON.parse(applications);
+        // updateMenu() {
+        //     return;
+        //     const getApplications = Gio.Subprocess.new(['pactl', '-f', 'json', 'list', 'sink-inputs'], Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE);
+        //     getApplications.communicate_utf8_async(null, null, (proc1, res1) => {
+        //         let [, applications, stderr] = getApplications.communicate_utf8_finish(res1);
+        //         const applicationsJson = JSON.parse(applications);
 
-                const active_audio = [];
-                for (let application of applicationsJson) {
-                    active_audio.push(application["properties"]["application.name"].trim());
-                }
-                for (let item of this.menu_items) {
-                    if (!active_audio.includes(item) && item == this.last_connection) {
-                        this.disconnect_audio();
-                    }
-                }
-                this.menu_items = active_audio;
-                this.menu.removeAll();
-                const menuItem = new PopupMenu.PopupMenuItem('Select Source');
-                menuItem.active = false;
-                menuItem.sensitive = false;
-                this.menu.addMenuItem(menuItem);
-                for (let application of this.menu_items) {
-                    const item = new PopupMenu.PopupMenuItem(application);
-                    if (application == this.last_connection) {
-                        item.setOrnament(PopupMenu.Ornament.CHECK);
-                    }
-                    item.connect('activate', (item, event) => this.itemClicked(item, event));
-                    this.menu.addMenuItem(item);
-                }
-            });
+        //         const active_audio = [];
+        //         for (let application of applicationsJson) {
+        //             active_audio.push(application["properties"]["application.name"].trim());
+        //         }
+        //         for (let item of this.menu_items) {
+        //             if (!active_audio.includes(item) && item == this.last_connection) {
+        //                 this.disconnect_audio();
+        //             }
+        //         }
+        //         this.menu_items = active_audio;
+        //         this.menu.removeAll();
+        //         const menuItem = new PopupMenu.PopupMenuItem('Select Source');
+        //         menuItem.active = false;
+        //         menuItem.sensitive = false;
+        //         this.menu.addMenuItem(menuItem);
+        //         for (let application of this.menu_items) {
+        //             const item = new PopupMenu.PopupMenuItem(application);
+        //             if (application == this.last_connection) {
+        //                 item.setOrnament(PopupMenu.Ornament.CHECK);
+        //             }
+        //             item.connect('activate', (item, event) => this.itemClicked(item, event));
+        //             this.menu.addMenuItem(item);
+        //         }
+        //     });
 
-        }
+        // }
 
-        itemClicked(item, event) {
-            return;
+        connect_audio(id) {
             const last_connection = this.last_connection;
             this.disconnect_audio();
-            if (item.label.text == last_connection) {
+            if (id == last_connection) {
                 return;
             }
-            const connectProc = Gio.Subprocess.new(['pw-link', item.label.text, 'VirtualMic'], Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE);
-            connectProc.communicate_utf8_async(null, null, (proc2, res2) => {
-                item.setOrnament(PopupMenu.Ornament.CHECK);
-                this.last_connection = item.label.text;
-                let [, stdout, stderr] = connectProc.communicate_utf8_finish(res2);
-                console.log(stdout);
+
+            const connectFL = Gio.Subprocess.new(['pw-link', this._applications.channels["FL"], this._channels["FL"]], Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE);
+            const connectFR = Gio.Subprocess.new(['pw-link', this._applications.channels["FR"], this._channels["FR"]], Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE);
+            connectFL.communicate_utf8_async(null, null, (proc1, res1) => {
+                let [, stdout, stderr] = connectFL.communicate_utf8_finish(res1);
+                connectFR.communicate_utf8_async(null, null, (proc2, res2) => {
+                    let [, stdout, stderr] = connectFR.communicate_utf8_finish(res2);
+                    this.last_connection = id;
+                    this._applications[id].menuItem.setOrnament(PopupMenu.Ornament.CHECK);
+                });
             });
         }
 
         disconnect_audio() {
-            return;
             if (!this.last_connection) {
                 return;
             }
-            const dis = Gio.Subprocess.new(['pw-link', '-d', this.last_connection, 'VirtualMic'], Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE);
-            dis.wait(null);
+            this._applications[this.last_connection].menuItem.setOrnament(PopupMenu.Ornament.NONE);
+
+            const disconnectFL = Gio.Subprocess.new(['pw-link', '-d', this._applications.channels["FL"], this._channels["FL"]], Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE);
+            const disconnectFR = Gio.Subprocess.new(['pw-link', '-d', this._applications.channels["FR"], this._channels["FR"]], Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE);
+
             this.last_connection = null;
         }
 
@@ -160,9 +199,43 @@ export default class IndicatorExampleExtension extends Extension {
             let [, virtMic, stderr] = getSinkProc.communicate_utf8_finish(res1);
             virtMic = virtMic.trim();
             this.virtMic = virtMic;
+            const pwDump = Gio.Subprocess.new(['pw-dump'], Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE);
+            pwDump.communicate_utf8_async(null, null, (proc1, res1) => {
+                let [, stdout, stderr] = pwDump.communicate_utf8_finish(res1);
+                const pwJson = JSON.parse(stdout);
+                const channels = {};
+                for (let i = 0; i < pwJson.length; i++) {
+                    const pwNode = pwJson[i];
+                    try {
+                        if (pwNode["info"]["props"]["pulse.module.id"] == virtMic) {
+                            const id = pwNode["id"];
+                            for (let j = i + 1; i < pwJson.length; j++) {
+                                try {
+                                    const pwNode2 = pwJson[j];
+                                    if (pwNode2["info"]["props"]["node.id"] == id && pwNode2["info"]["props"]["port.direction"] == "in") {
+                                        channels[pwNode2["info"]["props"]["audio.channel"]] = pwNode2["id"];
+                                        break;
+                                    }
+                                    if ("FL" in channels && "FR" in channels) {
+                                        break;
+                                    }
+                                }
+                                catch (e) {
+
+                                }
+
+                            }
+                            break;
+                        }
+                    } catch (e) {
+
+                    }
+
+                }
+                this._indicator = new Indicator(this.path, this.channels);
+                Main.panel.addToStatusArea(this.uuid, this._indicator);
+            });
         });
-        this._indicator = new Indicator(this.path);
-        Main.panel.addToStatusArea(this.uuid, this._indicator);
     }
 
     disable() {
