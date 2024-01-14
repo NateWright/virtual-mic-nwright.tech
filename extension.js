@@ -91,9 +91,9 @@ const Indicator = GObject.registerClass(
                                     const pwNode2 = pwJson[j];
                                     if (pwNode2["info"]["props"]["node.id"] == id && pwNode2["info"]["props"]["port.direction"] == "out") {
                                         application.outputChannels[pwNode2["info"]["props"]["audio.channel"]] = pwNode2["id"];
-                                        break;
                                     }
                                     if ("FL" in application.outputChannels && "FR" in application.outputChannels) {
+                                        console.log(application.outputChannels);
                                         application.menuItem.connect('activate', (item, event) => {
                                             this.connect_audio(application.id);
                                         });
@@ -122,42 +122,9 @@ const Indicator = GObject.registerClass(
             console.log('removing ' + id)
 
             const application = this._applications[id];
-            this.menu.removeMenuItem(application.menuItem);
+            application.menuItem.destroy();
             delete this._applications[id];
         }
-        // updateMenu() {
-        //     return;
-        //     const getApplications = Gio.Subprocess.new(['pactl', '-f', 'json', 'list', 'sink-inputs'], Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE);
-        //     getApplications.communicate_utf8_async(null, null, (proc1, res1) => {
-        //         let [, applications, stderr] = getApplications.communicate_utf8_finish(res1);
-        //         const applicationsJson = JSON.parse(applications);
-
-        //         const active_audio = [];
-        //         for (let application of applicationsJson) {
-        //             active_audio.push(application["properties"]["application.name"].trim());
-        //         }
-        //         for (let item of this.menu_items) {
-        //             if (!active_audio.includes(item) && item == this.last_connection) {
-        //                 this.disconnect_audio();
-        //             }
-        //         }
-        //         this.menu_items = active_audio;
-        //         this.menu.removeAll();
-        //         const menuItem = new PopupMenu.PopupMenuItem('Select Source');
-        //         menuItem.active = false;
-        //         menuItem.sensitive = false;
-        //         this.menu.addMenuItem(menuItem);
-        //         for (let application of this.menu_items) {
-        //             const item = new PopupMenu.PopupMenuItem(application);
-        //             if (application == this.last_connection) {
-        //                 item.setOrnament(PopupMenu.Ornament.CHECK);
-        //             }
-        //             item.connect('activate', (item, event) => this.itemClicked(item, event));
-        //             this.menu.addMenuItem(item);
-        //         }
-        //     });
-
-        // }
 
         connect_audio(id) {
             const last_connection = this.last_connection;
@@ -166,8 +133,8 @@ const Indicator = GObject.registerClass(
                 return;
             }
 
-            const connectFL = Gio.Subprocess.new(['pw-link', this._applications.channels["FL"], this._channels["FL"]], Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE);
-            const connectFR = Gio.Subprocess.new(['pw-link', this._applications.channels["FR"], this._channels["FR"]], Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE);
+            const connectFL = Gio.Subprocess.new(['pw-link', this._applications[id].outputChannels["FL"].toString(), this._channels["FL"].toString()], Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE);
+            const connectFR = Gio.Subprocess.new(['pw-link', this._applications[id].outputChannels["FR"].toString(), this._channels["FR"].toString()], Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE);
             connectFL.communicate_utf8_async(null, null, (proc1, res1) => {
                 let [, stdout, stderr] = connectFL.communicate_utf8_finish(res1);
                 connectFR.communicate_utf8_async(null, null, (proc2, res2) => {
@@ -184,8 +151,8 @@ const Indicator = GObject.registerClass(
             }
             this._applications[this.last_connection].menuItem.setOrnament(PopupMenu.Ornament.NONE);
 
-            const disconnectFL = Gio.Subprocess.new(['pw-link', '-d', this._applications.channels["FL"], this._channels["FL"]], Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE);
-            const disconnectFR = Gio.Subprocess.new(['pw-link', '-d', this._applications.channels["FR"], this._channels["FR"]], Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE);
+            const disconnectFL = Gio.Subprocess.new(['pw-link', '-d', this._applications[this.last_connection].outputChannels["FL"].toString(), this._channels["FL"].toString()], Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE);
+            const disconnectFR = Gio.Subprocess.new(['pw-link', '-d', this._applications[this.last_connection].outputChannels["FR"].toString(), this._channels["FR"].toString()], Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE);
 
             this.last_connection = null;
         }
@@ -214,7 +181,6 @@ export default class IndicatorExampleExtension extends Extension {
                                     const pwNode2 = pwJson[j];
                                     if (pwNode2["info"]["props"]["node.id"] == id && pwNode2["info"]["props"]["port.direction"] == "in") {
                                         channels[pwNode2["info"]["props"]["audio.channel"]] = pwNode2["id"];
-                                        break;
                                     }
                                     if ("FL" in channels && "FR" in channels) {
                                         break;
@@ -232,7 +198,7 @@ export default class IndicatorExampleExtension extends Extension {
                     }
 
                 }
-                this._indicator = new Indicator(this.path, this.channels);
+                this._indicator = new Indicator(this.path, channels);
                 Main.panel.addToStatusArea(this.uuid, this._indicator);
             });
         });
