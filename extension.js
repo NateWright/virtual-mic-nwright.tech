@@ -19,12 +19,16 @@
 import GObject from 'gi://GObject';
 import St from 'gi://St';
 import Gio from 'gi://Gio';
+import Gvc from 'gi://Gvc';
 
 import { Extension, gettext as _ } from 'resource:///org/gnome/shell/extensions/extension.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import * as Volume from 'resource:///org/gnome/shell/ui/status/volume.js';
+
+const MixerSinkInput = Gvc.MixerSinkInput;
 
 const Indicator = GObject.registerClass(
     class Indicator extends PanelMenu.Button {
@@ -35,8 +39,11 @@ const Indicator = GObject.registerClass(
                 gicon: Gio.icon_new_for_string(dir_path + '/icon-audio.svg'),
                 style_class: 'system-status-icon',
             }));
-            this.last_connection = null;
-            this.menu_items = [];
+            this._activeApplication = null;
+            this._applications = {};
+            this._mixerControl = Volume.getMixerControl();
+            this._sa_event_id = this._mixerControl.connect('stream-added', this._onStreamAdded.bind(this));
+            this._sr_event_id = this._mixerControl.connect('stream-removed', this._onStreamRemoved.bind(this));
             this.menu.connect('open-state-changed', (menu, open) => {
                 if (open) {
                     this.updateMenu();
@@ -46,9 +53,46 @@ const Indicator = GObject.registerClass(
             menuItem.active = false;
             menuItem.sensitive = false;
             this.menu.addMenuItem(menuItem);
+
+            for (const stream of this._mixerControl.get_streams()) {
+                this._onStreamAdded(this._mixerControl, stream);
+            }
             this.updateMenu();
         }
+
+        _onStreamAdded(control, id) {
+            if (id in this._applications) {
+                return;
+            }
+
+            const stream = control.lookup_stream_id(id);
+            if (stream.is_event_stream || !(stream instanceof MixerSinkInput)) {
+                return;
+            }
+            console.log('adding ' + id)
+            console.log('app id:' + stream.index);
+            const application = {
+                id: id,
+                name: stream.name,
+                stream: stream,
+                menuItem: new PopupMenu.PopupMenuItem(stream.name + ' ' + stream.description)
+            }
+            application.menuItem.connect('activate', (item, event) => this.itemClicked(item, event));
+            this._applications[id] = application;
+            this.menu.addMenuItem(application.menuItem);
+        }
+        _onStreamRemoved(control, id) {
+            if (!(id in this._applications)) {
+                return;
+            }
+            console.log('removing ' + id)
+
+            const application = this._applications[id];
+            this.menu.removeMenuItem(application.menuItem);
+            delete this._applications[id];
+        }
         updateMenu() {
+            return;
             const getApplications = Gio.Subprocess.new(['pactl', '-f', 'json', 'list', 'sink-inputs'], Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE);
             getApplications.communicate_utf8_async(null, null, (proc1, res1) => {
                 let [, applications, stderr] = getApplications.communicate_utf8_finish(res1);
@@ -82,6 +126,7 @@ const Indicator = GObject.registerClass(
         }
 
         itemClicked(item, event) {
+            return;
             const last_connection = this.last_connection;
             this.disconnect_audio();
             if (item.label.text == last_connection) {
@@ -97,6 +142,7 @@ const Indicator = GObject.registerClass(
         }
 
         disconnect_audio() {
+            return;
             if (!this.last_connection) {
                 return;
             }
